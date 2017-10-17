@@ -1,1 +1,658 @@
+/************************************************************************************
+
+	File: 			ProjectOne
+	
+	Description:	Assigment 1 for computer annimation. 
+
+	Author:			Seyd Razavi Lopez, B00751312. Modified from rotate square.
+
+*************************************************************************************/
+//Libraries
+#include <string.h>
+#include <freeglut.h>
+#include <math.h>
+#include <stdio.h>
+#include <time.h>
+#include <stdlib.h>
+//Globals
+#define PI 3.14159265
+#define DEG_TO_RAD PI/180.0
+#define NUMBER_OF_SPARKS 10
+
+//General variables for window Size
+GLfloat  ORIGINAL_WIDTH = 500.0;
+GLfloat ORIGINAL_HEIGHT = 500.0;
+//index of the next available start
+static GLint nextSpark = 0;
+// updates trayectory of the the sparkle
+static GLint locIndex = 5;
+static GLint nextLoc = 0;
+//variables for the muse
+GLint   mousePressed = 0;
+GLfloat mouseX, mouseY;
+//starting point for sparkles
+GLfloat positionX = -0.4;
+GLfloat positionY = -0.65;
+//thetha variable and size variables for sparkles and star
+GLfloat  theta = 0.0; 
+GLint changeInSize = 0; // changes the size during the display. Stores the data
+GLfloat size = 0.13; // max sixe
+GLfloat size2 = 0.0; // minimun size
+//variables for special functionality
+GLfloat startColor[3] = { 0, 0, 0 }; // stores a random color
+GLfloat starFading = 1.01; // star will fadeaway from this value to 0
+GLfloat starX, starY; // positions for the star
+GLint starOn = 0; // label to make sure only one star is displayed
+//Labels for the buttons. 
+GLint sparksButton = 0;
+GLint sparklesButton = 0;
+GLint morphButton = 0;
+GLint starButton = 0;
+//variables for position update
+GLfloat coorX; // stores the X value from the previous X
+GLfloat coorY; // same but Y value
+GLfloat nextCoorX; // X coordinate or boundary for X
+GLfloat nextCoorY; // same but for Y
+
+// sprak struct allows to store information and update (randomly)
+typedef struct sprk {
+	int IS_ACTIVE; // while the start is on it will remain the same and will not be updated. Hence will look as the same spark
+	GLfloat origin[2]; // origin coordinates
+	GLfloat state[2]; // Location coordinates
+	GLfloat color[3]; // color
+	GLfloat distance; // distance travelled. This is a flag to destroy the start so it can be reused since we can only have a max of ten
+	GLfloat speedX; // speed for X
+	GLfloat speedY; // speed for Y
+	GLfloat totalDistance; // to calculate the remaining life of the sparl
+
+} sparks;
+
+// sparks struct to store information based on trayectory color and speed. MAX OF 10
+static sparks sparksKeeper[NUMBER_OF_SPARKS] = {
+	{ 0,{ 0,0 },{ 0,0 },{ 0,0, 0 }, 1, 0, 0, 0 },
+	{ 0,{ 0,0 },{ 0,0 },{ 0,0, 0 }, 1, 0, 0, 0 },
+	{ 0,{ 0,0 },{ 0,0 },{ 0,0, 0 }, 1, 0, 0, 0 },
+	{ 0,{ 0,0 },{ 0,0 },{ 0,0, 0 }, 1, 0, 0, 0 },
+	{ 0,{ 0,0 },{ 0,0 },{ 0,0, 0 }, 1, 0, 0, 0 },
+	{ 0,{ 0,0 },{ 0,0 },{ 0,0, 0 }, 1, 0, 0, 0 },
+	{ 0,{ 0,0 },{ 0,0 },{ 0,0, 0 }, 1, 0, 0, 0 },
+	{ 0,{ 0,0 },{ 0,0 },{ 0,0, 0 }, 1, 0, 0, 0 },
+	{ 0,{ 0,0 },{ 0,0 },{ 0,0, 0 }, 1, 0, 0, 0 },
+	{ 0,{ 0,0 },{ 0,0 },{ 0,0, 0 }, 1, 0, 0, 0 } };
+
+// boundaries for the Letter L so sparkle can travel along
+GLfloat const areaBoundaries[6][2] = { { -0.4,  0.8 },{ -0.5, 0.8 },{ -0.5, -0.8 },{ 0.4,  -0.8 },{ 0.4, -0.7 },{ -0.4, -0.7 } };
+//boundaries for the 5 point star so sparkle can travel along
+GLfloat const areaBoundariesStar[10][2] = { { 0.0, 0.4 },{ -0.2, 0.0 },{ -0.6, 0.0 },{ -0.3, -0.2005 },{ -0.6, -0.6 },{ 0.0, -0.4 },{ 0.6, -0.6 },{ 0.3, -0.2005 },{ 0.6, 0.0 },{ 0.2, 0.0 } };
+
+// Array that contains both structures the first 15 data points represnt the letter L. The last 15 points represent the star
+GLfloat vertex[30][2] = { { -0.5f, 0.8f },{ -0.4f, 0.0f },{ -0.5f, -0.8f },
+{ -0.5f, 0.8f },{ -0.4f, 0.8f },{ -0.4f, -0.0f },
+{ -0.5f, -0.8f },{ -0.4f, -0.7f },{ -0.4f, 0.0f },
+{ -0.5f, -0.8f },{ -0.4f, -0.7f },{ 0.4f, -0.7f },
+{ -0.5f, -0.8f },{ 0.4f, -0.7f },{ 0.4f, -0.8f },
+{ 0.0, 0.4 },{ -0.2, 0.0 },{ 0.2, 0.0 },
+{ 0.0, 0.0 },{ -0.6, 0.0 },{ 0.0, -0.4 },
+{ -0.3, -0.2005 },{ -0.6, -0.6 },{ 0.0, -0.4 },
+{ 0.6, -0.6 } ,{ 0.3, -0.2005 } ,{ 0.0, -0.4 },
+{ 0.0, -0.4 },{ 0.6, 0.0 },{ 0.0, 0.0 } };
+
+//Array to contain all the positions at the display moment. Default values are the letter L. As Morph occurs values store here are changed and will be displayed
+GLfloat vertexPosition[15][2] = { { -0.5f, 0.8f },{ -0.4f, 0.0f },{ -0.5f, -0.8f },
+{ -0.5f, 0.8f },{ -0.4f, 0.8f },{ -0.4f, -0.0f },
+{ -0.5f, -0.8f },{ -0.4f, -0.7f },{ -0.4f, 0.0f },
+{ -0.5f, -0.8f },{ -0.4f, -0.7f },{ 0.4f, -0.7f },
+{ -0.5f, -0.8f },{ 0.4f, -0.7f },{ 0.4f, -0.8f } };
+
+/************************************************************************
+
+Function:		Spark generator
+
+Description:	Generates random sparks with random values
+
+*************************************************************************/
+void SparksGenerator() {
+	int foundNext = 0; // next index available in the array
+	int random = rand() % 100; // random number generators for creation 
+	int random2 = rand() % 100;
+	int random3 = rand() % 100;
+	int randomSpeedX = rand() % 10; // random nunmber generator for speed
+	int  randomSpeedY = rand() % 10;
+	// makes sure random numbers are selected.
+	if(random==random2&& random==random3){ // if all numbers are the same it will  create a spark
+		// starts sparks up to 10. Checks if spark is still active. If so it updates it so it can be display. See struct for more information
+		if (sparksKeeper[nextSpark].IS_ACTIVE == 0) {
+			sparksKeeper[nextSpark].IS_ACTIVE = 1;
+			sparksKeeper[nextSpark].totalDistance = 0;
+			sparksKeeper[nextSpark].origin[0] = positionX;
+			sparksKeeper[nextSpark].origin[1] = positionY;
+			sparksKeeper[nextSpark].state[0] = positionX;
+			sparksKeeper[nextSpark].state[1] = positionY;
+			//random speed generator
+			sparksKeeper[nextSpark].speedX = (randomSpeedX - 5) / 100000.0;
+			sparksKeeper[nextSpark].speedY = (randomSpeedY - 5) / 100000.0;
+			sparksKeeper[nextSpark];
+			// random color generator. Based on a 3 coin flips
+			if (rand() % 100 > 50) { sparksKeeper[nextSpark].color[0] = (GLfloat)1.0; }
+			else { sparksKeeper[nextSpark].color[0] = (GLfloat) 0.0; }
+			if (rand() % 100 > 50) { sparksKeeper[nextSpark].color[1] = (GLfloat)1.0; }
+			else { sparksKeeper[nextSpark].color[1] = (GLfloat)0.0; }
+			if (rand() % 100 > 50) { sparksKeeper[nextSpark].color[2] = (GLfloat)1.0; }
+			else { sparksKeeper[nextSpark].color[2] = (GLfloat) 1.0; }
+			// checks for next available spark to be display
+			for (int i = 0; i < NUMBER_OF_SPARKS&&foundNext==0; i++) { // checks if there are less than 10 sparks so more can be generated.
+				if (sparksKeeper[i].IS_ACTIVE == 0) { foundNext = 1; nextSpark = i;} // location store in nextSpark
+			}
+
+		}
+	}
+}
+/************************************************************************
+
+Function:		Random Color generator
+
+Description:	Generates a random color for the star and stores the value in the Array.
+
+*************************************************************************/
+void RandomColorGenerator(GLfloat c[]) {
+	// color generator is based on coin flips
+	if (rand() % 100 > 50) { c[0] = (GLfloat)1.0; }
+	else { c[0] = (GLfloat) 0.0; }
+	if (rand() % 100 > 50) { c[1] = (GLfloat)1.0; }
+	else { c[1] = (GLfloat)0.0; }
+	if (rand() % 100 > 50) { c[2] = (GLfloat)1.0; }
+	else { c[2] = (GLfloat) 1.0; }
+}
+/************************************************************************
+
+Function:		sparkUpdate
+
+Description:	Updates the active sparks 
+
+*************************************************************************/
+void sparkUpdate() {
+	for (int i = 0; i < NUMBER_OF_SPARKS; i++) { // goes through all the array
+		if (sparksKeeper[i].IS_ACTIVE == 1) { // if active found
+			if (sparksKeeper[i].distance >= sparksKeeper[i].totalDistance) { // if spark has not yet covered the total distance it will update it.
+				sparksKeeper[i].totalDistance = sparksKeeper[i].totalDistance + 0.00001; //updates the distance
+				sparksKeeper[i].origin[0] = sparksKeeper[i].origin[0] + sparksKeeper[i].speedX / 2.0; // gives a fading effect at the end 
+				sparksKeeper[i].origin[1] = sparksKeeper[i].origin[1] + sparksKeeper[i].speedY / 2.0;
+				sparksKeeper[i].state[0] = sparksKeeper[i].state[0] + sparksKeeper[i].speedX; // updates the next vertex for location
+				sparksKeeper[i].state[1] = sparksKeeper[i].state[1] + sparksKeeper[i].speedY;
+			}
+			else { // if no spark is found it becomes the next available one.
+				sparksKeeper[i].IS_ACTIVE = 0;
+				nextSpark = i;
+			}
+		}
+	}
+
+}
+/************************************************************************
+
+	Function:		draletter
+
+	Description:	draws the letter based on vertexPosition
+
+*************************************************************************/
+void drawLetter() {
+	glBegin(GL_TRIANGLES); // Will dra three vertex
+
+	glColor3f(0.722, 0.525, 0.043); // color of choice
+	for (int i = 0; i < 15; i++) { // since we are using 5 triangles and each triangle has 3 edges total of 15.
+
+		glVertex2f(vertexPosition[i][0], vertexPosition[i][1]); // display 
+	}
+
+	glEnd(); // ends
+
+}
+
+/************************************************************************
+
+Function:		drawButtom
+
+Description:	draws the bottom based:
+param@
+left: x left coordinate
+right:  x right coordinate
+top:  y top coordinate
+padding:y bottom coordinatr
+string: String for message
+
+*************************************************************************/
+void drawButton(GLfloat left, GLfloat right, GLfloat top, GLfloat bottom, GLfloat padding, char* str, int switchSign) {
+	if (switchSign) { // button is clicked it will swithc the color
+		glColor3f(0.722, 0.525, 0.043);
+	}
+	else {
+		glColor3f(0, 0.5, 0);
+	}
+	glBegin(GL_POLYGON);// draws the botton based on a polygon
+	glVertex2f(left, bottom);
+	glVertex2f(right, bottom);
+	glVertex2f(right, top);
+	glVertex2f(left, top);
+	glEnd();
+	if (switchSign) { // if button is clicked the letter will change the color
+		glColor3f(0, 0.5, 0);;
+	}
+	else {
+		glColor3f(0.722, 0.525, 0.043);
+	}
+	GLfloat paddingCorrection = left + padding; // updated padding and separation for each letter
+	for (int i = 0; i < strlen(str); i++) { // for every letter it adds it 
+		glRasterPos2f(paddingCorrection, bottom + 0.04); // coordinates
+		glutBitmapCharacter(GLUT_BITMAP_8_BY_13, str[i]); // letter using bitmap
+		paddingCorrection += 0.04; //updates location
+	}
+	//Shading and shadows for buttoms
+	glBegin(GL_LINES);
+	glLineWidth(100.0);
+	glColor3f(1.0, 1.0, 1.0);
+	glVertex2f(left, bottom);
+	glVertex2f(right,  bottom);
+	glVertex2f( right, top);
+	glVertex2f(right, bottom);
+	glEnd();
+}
+/************************************************************************
+
+Function:		starts
+
+Description:	generates one star with random color and will fadeaway
+
+
+*************************************************************************/
+void stars() {
+	int angle = 0; // angle for thetha update
+	GLfloat currentSize =  0.2; // size of reference for the points
+	glBegin(GL_LINES); // based on a aline
+	for (int i = 0; i < 8; i++) { // a 8 poinyt star
+		glColor4f(startColor[0], startColor[1], startColor[2], starFading); // sets color and transparency for start point
+		glVertex2f(starX, starY); // start point
+		glColor4f(startColor[0], startColor[1], startColor[2], 0.0); // same for end point
+		if (i % 2 == 0) { // allows to generate 8 point starts with two different "star"
+			// moves the star for the big one
+			glVertex2f(currentSize*cos(DEG_TO_RAD * (theta + angle)) + starX, currentSize*sin(DEG_TO_RAD * (theta + angle)) + starY);
+		}
+		else {
+			//moves the start for the old one
+			glVertex2f((currentSize/2)*cos(DEG_TO_RAD * (theta + angle)) + starX, (currentSize/2)*sin(DEG_TO_RAD * (theta + angle)) + starY);
+		}
+		//updates angle
+		angle = angle + 45;
+	}
+	glEnd(); // end
+}
+
+/************************************************************************
+
+Function:		sparkles
+
+Description:	displayes the sparkles
+
+
+*************************************************************************/
+void sparkles() {
+
+	int angle = 0; // angle for movement 
+	GLfloat currentSize; // size for changfe
+	glBegin(GL_LINES); // uses lines
+	for (int i = 0; i < 8; i++) { // same idea as stars function
+		glColor4f(1.0, 1.0, 1.0, 1.0);
+		glVertex2f(positionX, positionY);
+		glColor4f(1.0, 1.0, 1.0, 0.0);
+		if (i % 2 == 0) {
+			currentSize = size;
+		}
+		else { currentSize = size2; }
+		glVertex2f(currentSize*cos(DEG_TO_RAD * (theta + angle)) + positionX, currentSize*sin(DEG_TO_RAD * (theta + angle)) + positionY);
+		angle = angle + 45;
+	}
+	glEnd();
+}
+/************************************************************************
+
+Function:		boundariesCheck
+
+Description:	If user wants the morph option it will change the boundarieas accordingly
+
+*************************************************************************/
+
+void boundariesCheck() {
+	if (morphButton == 0) { // if morhp is not selected is based on the letter L
+		coorX = areaBoundaries[locIndex][0];
+		coorY = areaBoundaries[locIndex][1];
+		nextCoorX = areaBoundaries[nextLoc][0];
+		nextCoorY = areaBoundaries[nextLoc][1];
+	}
+	else { // if not bases on shape
+		coorX = areaBoundariesStar[locIndex][0];
+		coorY = areaBoundariesStar[locIndex][1];
+		nextCoorX = areaBoundariesStar[nextLoc][0];
+		nextCoorY = areaBoundariesStar[nextLoc][1];
+	}
+}
+/************************************************************************
+
+Function:		distance
+
+Description:	checks the distance travelled by the spark and makes sure it does not go over the  boundaries.
+
+*************************************************************************/
+void distance() {
+	boundariesCheck();
+	// evaluates distance to turning point based on areas.
+	float x = nextCoorX - positionX; // vector calculation
+	float y = nextCoorY - positionY;
+	float distance = hypotf(x, y);  // hypoth calculation
+	if (distance <= 0.00005 && distance >= -0.00005) { // if within reasnoble limits it will allow boundary change
+		locIndex = nextLoc; // nextLocation update as well as current location
+		nextLoc = locIndex + 1;
+		if (morphButton == 1 && locIndex == 9) { // makes sure it does not go over limit
+			nextLoc = 0;
+		}
+		else if (morphButton == 0 && locIndex == 5) {
+			nextLoc = 0;
+		}
+	}
+}
+
+/************************************************************************
+
+Function:		morphoChange
+
+Description:	modifies vertexPosition so display methods can use it. It changes if morph is selected
+
+*************************************************************************/
+
+void morphoChange() {
+	GLint newI = 0; // since two structures are in the same array we update I accorddingly 
+	if (morphButton) { newI = 15; } // if morph is changed then last 15 values are of interest
+	for (int i = 0; i < 15; i++) { // for loop for update
+		GLfloat xVector = vertex[i + newI][0] - vertexPosition[i][0]; // vextor calculation
+		GLfloat yVector = vertex[i + newI][1] - vertexPosition[i][1];
+		float angle = atan2(yVector, xVector); // checks the anggle for the two points for direction
+		angle = angle * 180 / PI; // to radianrts
+		vertexPosition[i][0] = vertexPosition[i][0] + cos(DEG_TO_RAD * (angle))*0.00005; // modifies direction based on cos(for x) and sin (for y)
+		vertexPosition[i][1] = vertexPosition[i][1] + sin(DEG_TO_RAD * (angle))*0.00005;
+	}
+}
+
+/************************************************************************
+
+Function:		sparklesLocationUpdate
+
+Description:	updates the direction of the sparkles to make sure it goes around the boundaries
+
+*************************************************************************/
+void sparklesLocationUpdate() {
+	boundariesCheck(); // makes sure proper boundaries are used
+	GLfloat xVector = nextCoorX - positionX; // vector calculation. And same idea as morphoChange
+	GLfloat yVector = nextCoorY - positionY;
+	float angle = atan2(yVector, xVector);
+	angle = angle * 180 / PI;
+	positionX = positionX + cos(DEG_TO_RAD * (angle))*0.00005;
+	positionY = positionY + sin(DEG_TO_RAD * (angle))*0.00005;
+
+}
+
+/************************************************************************
+
+Function:		thethaUpdate
+
+Description:	Updates the theha for movement. This method was desgined by example given during the lectures.
+
+*************************************************************************/
+void thetaUpdate() {
+	theta += 0.02;
+	if (theta >= 360.0) { theta -= 360.0; }
+}
+/************************************************************************
+
+Function:		sizeUpdate
+
+Description:	Updates the size of the sparkle.
+
+*************************************************************************/
+void sizeUpdate() {
+	if (size >= 0.13&&size2 <= 0.0) { changeInSize = 1; } // while size is within limits it sets the flag
+	else if (size2 >= 0.13&&size <= 0.0001) { changeInSize = 0; }
+
+	if(changeInSize){ size -= 0.00005; size2 += 0.00005; } // updates the sizes based on their current sizes so limits are respected
+	else{ size += 0.00005; size2 -= 0.00005; }
+	
+}
+
+/************************************************************************
+
+Function:		buttonClikc
+
+Description:	checks if a click is within buttons boundaries.
+Returs 1 if true. 0 if not
+
+*************************************************************************/
+
+int buttonClicked(GLfloat leftX, GLfloat topY, GLfloat rightX, GLfloat bottomY, GLfloat x, GLfloat y) {
+	if ((leftX <= x&&rightX >= x) && (bottomY <= y && topY >= y)) {
+		return 1;
+	}
+	else {
+		return 0;
+	}
+}
+
+/************************************************************************
+
+Function:		initializeGL
+
+Description:	Initializes the OpenGL rendering context for display. Used from example in class
+
+*************************************************************************/
+void initializeGL(void)
+{
+	// set background color to be black
+	glClearColor(0.0, 0.0, 0.0, 1.0);
+
+	// set the drawing to be white
+	glColor3f(1.0, 1.0, 1.0);
+
+	// set window mode to 2D orthographic and set the coordinate system
+	gluOrtho2D(-1.0, 1.0, -1.0, 1.0);
+}
+
+/************************************************************************
+
+Function:		myIdle
+
+Description:	Updates the animation when idle. Used from example shown in class
+
+*************************************************************************/
+void myIdle() {
+
+	//logic during idle Theta is updated then size, then location then distance. For sparkles
+	thetaUpdate();
+	sizeUpdate();
+	sparklesLocationUpdate();
+	distance();
+
+	if (starOn) { // if the star function is On and The star is not yet faded it will update the fading factor.
+		starFading = starFading - 0.0001;
+		if (starFading <= 0.0) { starOn = 0; starFading = 1.01; } // iF FULLY FADED it sets the fading factor to original and starOn is reset fot next click
+	}
+
+
+	glutPostRedisplay(); // updates-> calls display method
+}
+
+/************************************************************************
+
+	Function:		myDisplay
+
+	Description:	Displays a black square on a black background.  Used from example shown in class and modified by me
+
+*************************************************************************/
+void myDisplay(void)
+{
+	// clear the screen 
+	glClear(GL_COLOR_BUFFER_BIT);     
+	// Allows drawing Smooth lines...
+	glEnable(GL_LINE_SMOOTH);
+	glEnable(GL_POLYGON_SMOOTH); // ... and polygons....
+	glEnable(GL_BLEND); //.. allows blending
+	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA); // 
+	// sets all buttons
+	drawButton(-0.73f, -0.44f, -0.85f, -0.95f, 0.01, "Sparkle", sparklesButton);
+	drawButton(-0.34f, -0.04f, -0.85f, -0.95f, 0.03, "Sparks", sparksButton);
+	drawButton(0.05f, 0.35f, -0.85f, -0.95f, 0.05, "Morph", morphButton);
+	drawButton(0.44, 0.73f, -0.85f, -0.95f, 0.05, "Stars", starButton);
+	//changes based on user interaction on the shapes
+	morphoChange();
+	//displayes the changes
+	drawLetter();
+	// if sparkles button it shows the sparkle
+	if (sparklesButton) {
+		sparkles();
+		if (sparksButton) { // If sparkles botton and sparks on it will shoot the sparks
+			SparksGenerator(); // generates sparkls
+			sparkUpdate(); // updates sparks
+			for (int i = 0; i < NUMBER_OF_SPARKS; i++) { // Displays sparks with and for loop and only if active
+				if (sparksKeeper[i].IS_ACTIVE == 1) {
+					glBegin(GL_LINES); // based on lines
+					glColor4f(sparksKeeper[i].color[0], sparksKeeper[i].color[1], sparksKeeper[i].color[2], 0.0);
+					glVertex2f(sparksKeeper[i].origin[0], sparksKeeper[i].origin[1]);
+					glColor4f(sparksKeeper[i].color[0], sparksKeeper[i].color[1], sparksKeeper[i].color[2], 1.0);
+					glVertex2f(sparksKeeper[i].state[0], sparksKeeper[i].state[1]);
+					glEnd(); // end
+				}
+			}
+
+		}
+	}
+	if (starButton&&starOn) { // if srtarButton and startOn it displays the star
+		stars();
+	}
+	// swap the frame buffers
+	glutSwapBuffers();
+}
+
+/************************************************************************
+
+Function:		myReshape
+
+Description:	Changes the OpenGL aspect ratio to match a GLUT. Used from example shown in cl;ass and modified 
+window resize.
+
+*************************************************************************/
+void myReshape(int newWidth, int newHeight)
+{
+	// update the viewport to still be all of the window
+	glViewport(0, 0, newWidth, newHeight);
+
+	// enter GL_PROJECTION mode so that we can change the 2D coordinates 
+	glMatrixMode(GL_PROJECTION);
+
+	// clear the projection matrix
+	glLoadIdentity();
+
+	//alter the 2D drawing coordinates so that it matches the shape of the window
+	gluOrtho2D(-1.0, (GLfloat)newWidth / ORIGINAL_WIDTH,
+		-1.0, (GLfloat)newHeight / ORIGINAL_HEIGHT);
+}
+
+/************************************************************************
+
+Function:		myMouse
+
+Description:	Grabs the position of a mouse click. Used from example used in class and modfied
+
+*************************************************************************/
+void myMouseButton(int button, int state, int x, int y)
+{
+	// if the right button is pressed then quit
+	if (button == GLUT_RIGHT_BUTTON && state == GLUT_DOWN)
+		exit(0);
+	// if the left button is pressed then note the position and force a re-draw
+	if (button == GLUT_LEFT_BUTTON  && state == GLUT_DOWN )
+	{
+		// coordinates conversion based on width and height
+		mouseX = (GLfloat)x - (GLfloat)(ORIGINAL_WIDTH / 2);
+		mouseX = mouseX / (GLfloat)(ORIGINAL_WIDTH / 2);
+		mouseY = (GLfloat)y - ((GLfloat)ORIGINAL_HEIGHT / 2);
+		mouseY = mouseY * (-1) / ((GLfloat)ORIGINAL_HEIGHT / 2);
+
+		if (starOn == 0 && starButton) { // if starOn and starButton it updates the coordinates for the star
+			starOn = 1; // makes sure only one star at the time
+			starY = mouseY;
+			starX = mouseX;
+			//selects a color for the star
+			RandomColorGenerator(startColor); // selects the colors
+		}
+		//Checks if sparkle is on.
+		if (buttonClicked(-0.73,-0.85,-0.44,-0.95,mouseX, mouseY)) {
+			if (sparklesButton == 1) { sparklesButton = 0;;
+			}
+			else{ sparklesButton = 1;;
+			}
+		} 
+		else if (buttonClicked(-0.33, -0.85, -0.05, -0.95, mouseX, mouseY)) { // checks for sprks
+			if (sparksButton == 1) { sparksButton = 0; }
+			else { sparksButton = 1; }
+		}
+		else if (buttonClicked(0.05, -0.85, 0.34, -0.95, mouseX, mouseY)) { // checks for morph
+			if (morphButton == 1) { morphButton = 0; }
+			else { morphButton = 1; }
+		}
+		else if (buttonClicked(0.44, -0.85, 0.73, -0.95, mouseX, mouseY)) { // checks for star
+			if (starButton == 1) { starButton = 0; starFading = 1.01; }
+			else { starButton = 1; }
+		}
+
+		// now force OpenGL to redraw the change
+		glutPostRedisplay();
+	}
+
+}
+
+
+/************************************************************************
+
+	Function:		main
+
+	Description:	Sets up the openGL rendering context and the windowing
+					system, then begins the display loop. Used from example shown in class. And modified
+
+*************************************************************************/
+void main(int argc, char** argv)
+{
+	// initialize the toolkit
+	glutInit(&argc, argv);          
+	// set display mode
+	glutInitDisplayMode(GLUT_RGB | GLUT_DOUBLE | GL_DEPTH | GL_DOUBLE);
+	// set window size
+	glutInitWindowSize(ORIGINAL_WIDTH, ORIGINAL_HEIGHT);
+	// set window position on screen
+	glutInitWindowPosition(100, 150); 
+	// open the screen window
+	glutCreateWindow("Project One");
+	
+
+
+	// register redraw function
+	glutDisplayFunc(myDisplay);     
+
+	glutMouseFunc(myMouseButton); // mouse 
+
+	// register the idle function
+	glutIdleFunc(myIdle);  
+
+	//glutReshapeFunc(myReshape);
+	
+	//initialize the rendering context
+	initializeGL();                   
+	// go into a perpetual loop
+	glutMainLoop(); 		     
+}
+
 
